@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Taxonomy Tree Visualizer</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#94a3b8;--accent:#60a5fa}
+    html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    body{background:linear-gradient(180deg,#071025 0%, #071727 60%);color:#e6eef8}
+    .app{display:flex;flex-direction:column;height:100vh;padding:14px;gap:12px}
+    header{display:flex;align-items:center;gap:12px}
+    h1{margin:0;font-size:18px}
+    .controls{margin-left:auto;display:flex;gap:8px;align-items:center}
+    .controls input[type=text]{padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:inherit}
+    .controls button{background:var(--accent);border:none;padding:8px 10px;border-radius:8px;color:#04202f;cursor:pointer;font-weight:600}
+    .canvas-wrap{flex:1;display:flex;background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:12px}
+    #chart{flex:1;min-height:280px}
+    .tooltip{position:absolute;pointer-events:none;background:linear-gradient(180deg,#fff,#f8fafc);color:#04202f;padding:10px;border-radius:8px;box-shadow:0 6px 18px rgba(2,6,23,0.6);max-width:320px;font-size:13px;border:1px solid rgba(2,6,23,0.06)}
+    .node circle{stroke:#9fb7d9;stroke-width:1.5px;fill:#0b1220}
+    .node text{font-size:12px}
+    .legend{position:absolute;left:28px;bottom:18px;background:rgba(2,6,23,0.4);padding:8px;border-radius:8px;font-size:12px;color:var(--muted)}
+    .credit{font-size:12px;color:var(--muted);margin-left:12px}
+    @media (max-width:700px){header{flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Taxonomy Tree Visualizer — Family → Genus → Species</h1>
+      <div class="credit">Standalone HTML • Works on GitHub Pages</div>
+      <div class="controls">
+        <input id="search" placeholder="Search family / genus / species" type="text" />
+        <button id="reset">Reset View</button>
+        <button id="download">Download SVG</button>
+      </div>
+    </header>
+
+    <div class="canvas-wrap">
+      <div id="chart"></div>
+      <div class="legend">Tip: click nodes to expand/collapse • Hover nodes for descriptions</div>
+    </div>
+  </div>
+
+  <div id="tooltip" class="tooltip" style="display:none"></div>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    // Sample taxonomy data: family -> genus -> species
+    const data = {
+      name: 'Life', description: 'Root (not shown)', children: [
+        {
+          name: 'Felidae (Cats)', rank: 'family', description: 'Family of carnivorous mammals known as cats.', children: [
+            { name: 'Panthera', rank: 'genus', description: 'Big cat genus.', children: [
+              { name: 'Panthera leo', rank: 'species', description: 'Lion — social big cat native to Africa and India.' },
+              { name: 'Panthera tigris', rank: 'species', description: 'Tiger — largest cat species native to Asia.' }
+            ]},
+            { name: 'Felis', rank: 'genus', description: 'Small cat genus.', children: [
+              { name: 'Felis catus', rank: 'species', description: 'Domestic cat — companion animal derived from wildcats.' },
+              { name: 'Felis silvestris', rank: 'species', description: 'Wildcat — small wild feline.' }
+            ]}
+          ]
+        },
+        {
+          name: 'Canidae (Dogs)', rank: 'family', description: 'Family including dogs, wolves, foxes.', children: [
+            { name: 'Canis', rank: 'genus', description: 'Genus including dogs and wolves', children:[
+              { name: 'Canis lupus', rank: 'species', description: 'Gray wolf — wild ancestor of domestic dogs.'},
+              { name: 'Canis lupus familiaris', rank: 'species', description: 'Domestic dog — domesticated subspecies of the wolf.'}
+            ]},
+            { name: 'Vulpes', rank: 'genus', description: 'True foxes', children:[
+              { name: 'Vulpes vulpes', rank: 'species', description: 'Red fox — common widespread fox species.' }
+            ]}
+          ]
+        },
+        {
+          name: 'Corvidae (Crows & Ravens)', rank: 'family', description: 'Intelligent birds including crows and ravens.', children:[
+            { name: 'Corvus', rank: 'genus', description: 'Crows and ravens', children:[
+              { name: 'Corvus corax', rank: 'species', description: 'Common raven — large all-black passerine bird.'},
+              { name: 'Corvus brachyrhynchos', rank: 'species', description: 'American crow — adaptable and intelligent.'}
+            ]}
+          ]
+        },
+        {
+          name: 'Hominidae (Great Apes)', rank: 'family', description: 'Family including humans and great apes.', children:[
+            { name: 'Homo', rank: 'genus', description: 'Human genus', children:[
+              { name: 'Homo sapiens', rank: 'species', description: 'Modern humans.' }
+            ]},
+            { name: 'Pan', rank: 'genus', description: 'Chimpanzees', children:[
+              { name: 'Pan troglodytes', rank: 'species', description: 'Common chimpanzee.'},
+              { name: 'Pan paniscus', rank: 'species', description: 'Bonobo.'}
+            ]}
+          ]
+        }
+      ]
+    };
+
+    // Layout settings
+    const margin = {top: 20, right: 120, bottom: 20, left: 120};
+    const width = Math.max(800, window.innerWidth - 120) - margin.left - margin.right;
+    const height = Math.max(600, window.innerHeight - 240) - margin.top - margin.bottom;
+
+    const svg = d3.select('#chart').append('svg')
+      .attr('width', width + margin.left + margin.right)
+      .attr('height', height + margin.top + margin.bottom)
+      .style('overflow', 'visible')
+      .call(d3.zoom().scaleExtent([0.4, 3]).on('zoom', (event) => {
+        g.attr('transform', event.transform);
+      }));
+
+    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const root = d3.hierarchy(data, d => d.children);
+    root.x0 = height / 2;
+    root.y0 = 0;
+
+    // collapse root's children initially so families show
+    root.children.forEach(collapse);
+
+    const treeLayout = d3.tree().nodeSize([60, 200]).separation((a,b)=> (a.parent==b.parent?1:1.6));
+
+    update(root);
+
+    function update(source) {
+      const treeData = treeLayout(root);
+      const nodes = treeData.descendants();
+      const links = treeData.links();
+
+      // Normalize for fixed-depth
+      nodes.forEach(d => { d.y = d.depth * 180; });
+
+      // Nodes
+      const node = g.selectAll('g.node').data(nodes, d => d.id || (d.id = ++i));
+
+      const nodeEnter = node.enter().append('g')
+        .attr('class', 'node')
+        .attr('transform', d => `translate(${source.y0},${source.x0})`)
+        .on('click', (event,d) => { toggle(d); update(d); })
+        .on('mouseover', (event,d) => showTooltip(event,d))
+        .on('mousemove', (event,d) => moveTooltip(event))
+        .on('mouseout', hideTooltip);
+
+      nodeEnter.append('circle')
+        .attr('r', 1e-6);
+
+      nodeEnter.append('text')
+        .attr('dy', 3)
+        .attr('x', d => d.children || d._children ? -10 : 10)
+        .attr('text-anchor', d => d.children || d._children ? 'end' : 'start')
+        .text(d => d.data.name)
+        .style('fill-opacity', 1e-6);
+
+      // Transition nodes to their new position.
+      const nodeUpdate = nodeEnter.merge(node);
+
+      nodeUpdate.transition().duration(400)
+        .attr('transform', d => `translate(${d.y},${d.x})`);
+
+      nodeUpdate.select('circle').attr('r', 8);
+      nodeUpdate.select('text').style('fill-opacity', 1).attr('x', d => d.children || d._children ? -14 : 14).attr('text-anchor', d => d.children || d._children ? 'end' : 'start');
+
+      // Remove any exiting nodes
+      const nodeExit = node.exit().transition().duration(400)
+        .attr('transform', d => `translate(${source.y},${source.x})`)
+        .remove();
+
+      nodeExit.select('circle').attr('r', 1e-6);
+      nodeExit.select('text').style('fill-opacity', 1e-6);
+
+      // Links
+      const link = g.selectAll('path.link').data(links, d => d.target.id);
+
+      const linkEnter = link.enter().insert('path', 'g')
+        .attr('class', 'link')
+        .attr('d', d => {
+          const o = {x: source.x0, y: source.y0};
+          return diagonal({source: o, target: o});
+        })
+        .attr('fill', 'none')
+        .attr('stroke', 'rgba(255,255,255,0.08)')
+        .attr('stroke-width', 1.5);
+
+      const linkUpdate = linkEnter.merge(link);
+      linkUpdate.transition().duration(400).attr('d', diagonal);
+
+      const linkExit = link.exit().transition().duration(400).attr('d', d => {
+        const o = {x: source.x, y: source.y};
+        return diagonal({source: o, target: o});
+      }).remove();
+
+      // Store positions for transition
+      nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+    }
+
+    function diagonal(d) {
+      // cubic bezier path
+      return `M${d.source.y},${d.source.x}` +
+             `C${(d.source.y + d.target.y) / 2},${d.source.x}` +
+             ` ${(d.source.y + d.target.y) / 2},${d.target.x}` +
+             ` ${d.target.y},${d.target.x}`;
+    }
+
+    function collapse(d) {
+      if(d.children) { d._children = d.children; d._children.forEach(collapse); d.children = null; }
+    }
+
+    function expand(d) {
+      if(d._children) { d.children = d._children; d.children.forEach(expand); d._children = null; }
+    }
+
+    function toggle(d) {
+      if(d.children) { d._children = d.children; d.children = null; }
+      else { d.children = d._children; d._children = null; }
+    }
+
+    // Tooltip handling
+    const tooltip = d3.select('#tooltip');
+    function showTooltip(event, d) {
+      const html = `<strong>${d.data.name}</strong><div style="margin-top:6px;font-size:13px;color:#0b1220">${d.data.rank ? '<em>' + (d.data.rank) + '</em><br/>' : ''}${escapeHtml(d.data.description || 'No description available.')}</div>`;
+      tooltip.html(html).style('display','block');
+      moveTooltip(event);
+    }
+    function moveTooltip(event) {
+      const [x,y] = d3.pointer(event);
+      tooltip.style('left', (event.pageX + 14) + 'px').style('top', (event.pageY + 10) + 'px');
+    }
+    function hideTooltip(){ tooltip.style('display','none'); }
+
+    function escapeHtml(str){ return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    // Search
+    document.getElementById('search').addEventListener('input', (e)=>{
+      const q = e.target.value.trim().toLowerCase();
+      if(!q){ clearHighlights(); return; }
+      const matches = [];
+      root.each(d => { if(d.data.name.toLowerCase().includes(q)) matches.push(d); });
+      clearHighlights();
+      if(matches.length){
+        // expand path to first match and center it
+        const node = matches[0];
+        let ancestor = node;
+        while(ancestor) { ancestor.children = ancestor.children || ancestor._children; ancestor = ancestor.parent; }
+        // highlight all matches
+        g.selectAll('g.node').select('text').style('font-weight', d => matches.includes(d) ? '700' : '400');
+        // focus view
+        centerOn(matches[0]);
+      }
+    });
+
+    function clearHighlights(){ g.selectAll('g.node').select('text').style('font-weight','400'); }
+
+    function centerOn(d){
+      const scale = 1.2;
+      const x = -d.y * scale + (width/2);
+      const y = -d.x * scale + (height/2);
+      svg.transition().duration(600).call( d3.zoom().transform, d3.zoomIdentity.translate(x + margin.left, y + margin.top).scale(scale) );
+    }
+
+    // Reset
+    document.getElementById('reset').addEventListener('click', ()=>{
+      svg.transition().duration(400).call(d3.zoom().transform, d3.zoomIdentity.translate(0,0).scale(1));
+      // collapse back to families only
+      root.children.forEach(collapse);
+      update(root);
+    });
+
+    // Download SVG
+    document.getElementById('download').addEventListener('click', ()=>{
+      const serializer = new XMLSerializer();
+      const clone = svg.node().cloneNode(true);
+      // inline styles (very small effort) - add white bg
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      const str = serializer.serializeToString(clone);
+      const blob = new Blob([str], {type: 'image/svg+xml'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'taxonomy_tree.svg'; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // Ensure accessibility: keyboard focus and small helper
+    let i = 0;
+
+    // Initial expand families
+    root.children.forEach(d => d.children = d._children, d._children = null);
+    update(root);
+
+    // Make nodes clickable via keyboard (delegated)
+    d3.select(window).on('keydown', (event) => {
+      if(event.key === 'f' && document.activeElement.tagName !== 'INPUT') document.getElementById('search').focus();
+    });
+
+    // Resize handling
+    window.addEventListener('resize', ()=>{ /* minimal: do nothing, layout remains flexible */ });
+  </script>
+</body>
+</html>
