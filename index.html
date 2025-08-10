@@ -1,382 +1,309 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Big Cat Taxonomy — Polished Tree</title>
-<link rel="preconnect" href="https://fonts.gstatic.com">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Big Cat Taxonomy Tree</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
-  :root{
-    --bg1:#071428; --bg2:#091024; --panel:#0f1726;
-    --muted:rgba(241,245,249,0.65);
-    --label:#f1f5f9;
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: repeating-linear-gradient(45deg, #0e1a26, #0e1a26 20px, #142433 20px, #142433 40px);
+    color: #fff;
+    overflow: hidden;
   }
-  html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;color:var(--label);background:
-    repeating-linear-gradient(45deg, var(--bg1) 0 18px, var(--bg2) 18px 36px);}
-
-/* Top bar */
-header{
-  height:64px;display:flex;align-items:center;gap:18px;padding:10px 20px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-bottom:1px solid rgba(255,255,255,0.03);
-}
-h1{font-size:16px;margin:0;font-weight:600;color:var(--label)}
-.controls{display:flex;gap:10px;align-items:center}
-.btn{
-  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.03);color:var(--label);padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;
-}
-.btn:active{transform:translateY(1px)}
-.legend{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:13px;color:var(--muted)}
-.legend-item{display:flex;gap:8px;align-items:center}
-.legend-swatch{width:11px;height:11px;border-radius:50%}
-
-/* SVG canvas */
-#canvas{width:100%;height:calc(100vh - 64px);overflow:hidden;}
-svg{display:block;width:100%;height:100%}
-
-/* links & nodes */
-.link{fill:none;stroke:rgba(255,255,255,0.07);stroke-width:1.6px}
-.node circle{stroke:#071428;stroke-width:1.5px}
-.node text{font-size:13px;fill:var(--label);font-weight:600;pointer-events:none;paint-order:stroke;stroke:rgba(2,6,23,0.85);stroke-width:2px}
-
-/* label pill background */
-.label-rect{fill:rgba(2,6,23,0.65);rx:6;ry:6;}
-
-/* tooltip */
-.tooltip{position:fixed;pointer-events:none;background:#0b1220;border:1px solid rgba(255,255,255,0.04);padding:10px 12px;border-radius:8px;box-shadow:0 8px 28px rgba(2,6,23,0.8);max-width:300px;color:#e6eef6;font-size:13px;display:none;z-index:1000}
-
-/* subtle focus pulse */
-.pulse { animation: pulse 900ms ease; }
-@keyframes pulse {
-  from { r:8; opacity:1 }
-  to { r:12; opacity:0.2 }
-}
-
-/* responsive */
-@media (max-width:900px){ header{padding:10px 12px} .legend{display:none} }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(6px);
+  }
+  header h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+  }
+  .controls button {
+    background: #1f3b52;
+    border: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    margin-left: 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .controls button:hover {
+    background: #28506e;
+  }
+  .legend {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    font-size: 0.85rem;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  .tooltip {
+    position: absolute;
+    background: rgba(20, 30, 40, 0.95);
+    padding: 0.8rem;
+    border-radius: 8px;
+    max-width: 260px;
+    pointer-events: none;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    opacity: 0;
+    transition: opacity 0.2s;
+    color: white;
+  }
+  .tooltip h2 {
+    font-size: 1rem;
+    margin: 0;
+    font-weight: 700;
+  }
+  .tooltip em {
+    font-style: italic;
+    font-size: 0.85rem;
+    display: block;
+    margin-top: 0.1rem;
+    color: #cfd9e3;
+  }
+  .tooltip .meta {
+    font-size: 0.75rem;
+    color: #a0b2c2;
+    margin-top: 0.2rem;
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>Big Cat Taxonomy Tree</h1>
   <div class="controls">
-    <button class="btn" id="expandAll">Expand all</button>
-    <button class="btn" id="collapseGenera">Collapse to genera</button>
-    <button class="btn" id="resetView">Reset view</button>
+    <button id="expandAll">Expand all</button>
+    <button id="collapseGenera">Collapse to genera</button>
+    <button id="resetView">Reset view</button>
   </div>
-
-  <div class="legend" aria-hidden>
-    <div class="legend-item"><span class="legend-swatch" style="background:#fbbf24"></span>Family</div>
-    <div class="legend-item"><span class="legend-swatch" style="background:#06b6d4"></span>Subfamily</div>
-    <div class="legend-item"><span class="legend-swatch" style="background:#ef4444"></span>Panthera</div>
-    <div class="legend-item"><span class="legend-swatch" style="background:#a78bfa"></span>Neofelis</div>
-    <div class="legend-item"><span class="legend-swatch" style="background:#3b82f6"></span>Acinonyx</div>
-    <div class="legend-item"><span class="legend-swatch" style="background:#22c55e"></span>Puma</div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-color" style="background:#ff4b4b"></div>Panthera</div>
+    <div class="legend-item"><div class="legend-color" style="background:#b16dff"></div>Neofelis</div>
+    <div class="legend-item"><div class="legend-color" style="background:#4bb6ff"></div>Acinonyx</div>
+    <div class="legend-item"><div class="legend-color" style="background:#4bff88"></div>Puma</div>
   </div>
 </header>
-
-<div id="canvas">
-  <svg id="svgRoot" preserveAspectRatio="xMidYMid meet"></svg>
-</div>
-
+<svg id="tree"></svg>
 <div class="tooltip" id="tooltip"></div>
-
-<script src="https://d3js.org/d3.v7.min.js"></script>
 <script>
-/* -------------------------
-   Hierarchy data (simplified)
-   ------------------------- */
-const treeData = {
-  name: 'Felidae (Family)', color:'#fbbf24',
+const data = {
+  name: "Felidae",
+  rank: "Family",
+  description: "The biological family of cats; carnivorous mammals known for their agility and predatory skills.",
   children: [
     {
-      name: 'Pantherinae (Subfamily)', color:'#06b6d4',
+      name: "Pantherinae",
+      rank: "Subfamily",
       children: [
         {
-          name: 'Panthera (Genus)', color:'#ef4444',
-          children:[
-            {name:'Panthera leo', common:'Lion', info:'Large social cat native to Africa & India.'},
-            {name:'Panthera tigris', common:'Tiger', info:'Largest big cat; solitary ambush predator across Asia.'},
-            {name:'Panthera onca', common:'Jaguar', info:'Powerful American feline often found near water.'},
-            {name:'Panthera pardus', common:'Leopard', info:'Adaptable cat with rosettes across Africa & Asia.'},
-            {name:'Panthera uncia', common:'Snow Leopard', info:'High-altitude specialist of Central Asia.'}
+          name: "Panthera",
+          rank: "Genus",
+          color: "#ff4b4b",
+          children: [
+            { name: "Lion", sci: "Panthera leo", rank: "Species", description: "Social big cat living in prides; apex predator of African savannas and India's Gir Forest.", color: "#ff4b4b" },
+            { name: "Tiger", sci: "Panthera tigris", rank: "Species", description: "Largest cat species; solitary hunter of Asia's forests and grasslands.", color: "#ff4b4b" },
+            { name: "Jaguar", sci: "Panthera onca", rank: "Species", description: "Powerful swimmer and apex predator of Central and South America's forests.", color: "#ff4b4b" },
+            { name: "Leopard", sci: "Panthera pardus", rank: "Species", description: "Stealthy and adaptable predator found across Africa and Asia.", color: "#ff4b4b" },
+            { name: "Snow Leopard", sci: "Panthera uncia", rank: "Species", description: "Elusive big cat of Central and South Asia's mountains.", color: "#ff4b4b" }
           ]
         },
         {
-          name: 'Neofelis (Genus)', color:'#a78bfa',
-          children:[
-            {name:'Neofelis nebulosa', common:'Clouded Leopard', info:'Arboreal species of SE Asia with cloud-like spots.'},
-            {name:'Neofelis diardi', common:'Sunda Clouded Leopard', info:'Island cousin found on Borneo and Sumatra.'}
+          name: "Neofelis",
+          rank: "Genus",
+          color: "#b16dff",
+          children: [
+            { name: "Clouded Leopard", sci: "Neofelis nebulosa", rank: "Species", description: "Arboreal predator of Southeast Asian forests.", color: "#b16dff" },
+            { name: "Sunda Clouded Leopard", sci: "Neofelis diardi", rank: "Species", description: "Rare forest cat native to Borneo and Sumatra.", color: "#b16dff" }
           ]
         }
       ]
     },
     {
-      name: 'Felinae (Subfamily)', color:'#06b6d4',
-      children:[
+      name: "Felinae",
+      rank: "Subfamily",
+      children: [
         {
-          name:'Acinonyx (Genus)', color:'#3b82f6',
-          children:[ {name:'Acinonyx jubatus', common:'Cheetah', info:'Fastest land mammal; built for sprinting.'} ]
+          name: "Acinonyx",
+          rank: "Genus",
+          color: "#4bb6ff",
+          children: [
+            { name: "Cheetah", sci: "Acinonyx jubatus", rank: "Species", description: "Fastest land animal; inhabits African savannas.", color: "#4bb6ff" }
+          ]
         },
         {
-          name:'Puma (Genus)', color:'#22c55e',
-          children:[ {name:'Puma concolor', common:'Cougar', info:'Wide-ranging American cat; adaptable & solitary.'} ]
+          name: "Puma",
+          rank: "Genus",
+          color: "#4bff88",
+          children: [
+            { name: "Cougar", sci: "Puma concolor", rank: "Species", description: "Large solitary cat of the Americas, also called mountain lion or puma.", color: "#4bff88" }
+          ]
         }
       ]
     }
   ]
 };
 
-/* -------------------------
-   Setup SVG + zoom/pan
-   ------------------------- */
-const svg = d3.select('#svgRoot');
-const canvas = document.getElementById('svgRoot');
+const svg = d3.select("#tree");
 const width = window.innerWidth;
-const height = window.innerHeight - 64;
-svg.attr('viewBox', `0 0 ${width} ${height}`);
+const height = window.innerHeight - document.querySelector("header").offsetHeight;
+svg.attr("width", width).attr("height", height);
+const g = svg.append("g").attr("transform", "translate(80,40)");
+const tooltip = d3.select("#tooltip");
 
-const g = svg.append('g').attr('transform','translate(120,40)');
-
-const zoom = d3.zoom()
-  .scaleExtent([0.4, 3])
-  .on('zoom', (event) => g.attr('transform', event.transform));
-
-d3.select(canvas).call(zoom).on("dblclick.zoom", null); // disable double-click zoom
-
-/* -------------------------
-   Create tree
-   ------------------------- */
-const root = d3.hierarchy(treeData);
-root.x0 = height/2;
+const treeLayout = d3.tree().size([height - 100, width - 300]);
+let root = d3.hierarchy(data);
+root.x0 = height / 2;
 root.y0 = 0;
+root.children.forEach(collapse);
 
-/* Collapse helper */
-function collapse(d){
-  if(d.children){
-    d.children.forEach(collapse);
-    d._children = d.children;
-    d.children = null;
-  }
-}
-/* Expand helper */
-function expand(d){
-  if(d._children){
-    d.children = d._children;
-    d._children = null;
-  }
-  if(d.children) d.children.forEach(expand);
-}
+const zoom = d3.zoom().scaleExtent([0.5, 2]).on("zoom", (event) => {
+  g.attr("transform", event.transform);
+});
+svg.call(zoom);
 
-/* Start collapsed to genera:
-   We want family -> subfamily -> genus visible, species collapsed
-*/
-function collapseToGenera(node){
-  if(!node.children) return;
-  node.children.forEach(sub => {
-    if(sub.children){
-      sub.children.forEach(gen => {
-        // gen is a genus: collapse its species to _children
-        if(gen.children){
-          gen._children = gen.children;
-          gen.children = null;
-        }
-      });
-    }
-  });
-}
-collapseToGenera(root);
+update(root);
 
-/* D3 tree layout */
-const treeLayout = d3.tree().size([height - 160, width - 340]);
-
-/* Tooltip */
-const tooltip = d3.select('#tooltip');
-
-/* render/update */
-let idCounter = 0;
-function update(source){
-  const duration = 450;
-  treeLayout(root);
-
-  const nodes = root.descendants();
-  const links = root.links();
-
-  // Normalize y for spacing
-  nodes.forEach(d => d.y = d.depth * 180);
-
-  // LINKS
-  const link = g.selectAll('path.link').data(links, d => d.target.data.name);
-
-  // enter
-  const linkEnter = link.enter().append('path')
-    .attr('class','link')
-    .attr('d', d => {
-      const o = {x: source.x0 || root.x0, y: source.y0 || root.y0};
-      return diagonal({source:o, target:o});
-    })
-    .attr('stroke', 'rgba(255,255,255,0.06)');
-
-  // update + transition
-  linkEnter.merge(link)
-    .transition().duration(duration)
-    .attr('d', diagonal);
-
-  link.exit().transition().duration(duration)
-    .attr('d', d => {
-      const o = {x: source.x, y: source.y};
-      return diagonal({source:o, target:o});
-    })
-    .remove();
-
-  // NODES
-  const node = g.selectAll('g.node').data(nodes, d => d.data.name);
-
-  const nodeEnter = node.enter().append('g')
-    .attr('class','node')
-    .attr('transform', d => `translate(${source.y0 || root.y0},${source.x0 || root.x0})`)
-    .on('click', (event,d) => {
-      // toggle children
-      if(d.children){ d._children = d.children; d.children = null; }
+function update(source) {
+  const treeData = treeLayout(root);
+  const nodes = treeData.descendants();
+  const links = treeData.links();
+  
+  nodes.forEach(d => { d.y = d.depth * 180; });
+  
+  const node = g.selectAll("g.node").data(nodes, d => d.id || (d.id = ++i));
+  
+  const nodeEnter = node.enter().append("g")
+    .attr("class", "node")
+    .attr("transform", d => `translate(${source.y0},${source.x0})`)
+    .on("click", (event, d) => {
+      if (d.children) { d._children = d.children; d.children = null; }
       else { d.children = d._children; d._children = null; }
       update(d);
     })
-    .on('mouseover', (event,d) => {
-      if(d.data.info){
-        tooltip.style('display','block')
-               .html(`<strong style="display:block;margin-bottom:6px;color:#fff">${d.data.common ? d.data.common + ' — ' : ''}${d.data.name}</strong><div style="color:#dbeafe;font-size:13px">${d.data.info}</div>`);
-      } else {
-        tooltip.style('display','block').html(`<strong style="display:block;color:#fff">${d.data.name}</strong>`);
-      }
+    .on("mouseover", (event, d) => {
+      if (!d.data.sci && !d.data.description) return;
+      tooltip.style("opacity", 1)
+        .html(`
+          <h2>${d.data.name}</h2>
+          ${d.data.sci ? `<em>${d.data.sci}</em>` : ""}
+          <div class="meta">Rank: ${d.data.rank}${d.parent ? ` · Genus: ${getGenus(d)}` : ""}</div>
+          <div>${d.data.description || ""}</div>
+        `)
+        .style("left", (event.pageX + 15) + "px")
+        .style("top", (event.pageY + 15) + "px");
     })
-    .on('mousemove', (event) => {
-      tooltip.style('left', (event.pageX + 14) + 'px')
-             .style('top', (event.pageY + 14) + 'px');
+    .on("mousemove", (event) => {
+      tooltip.style("left", (event.pageX + 15) + "px")
+             .style("top", (event.pageY + 15) + "px");
     })
-    .on('mouseout', () => tooltip.style('display','none'));
-
-  // circle
-  nodeEnter.append('circle')
-    .attr('r', 0.1)
-    .attr('fill', d => (d.depth === 0 ? '#fbbf24' : (d.data.color || (d.depth===1 ? '#06b6d4' : '#94a3b8'))))
-    .attr('class','node-circle');
-
-  // label background rect (inserted before text)
-  nodeEnter.append('rect')
-    .attr('class','label-rect')
-    .attr('x', 0).attr('y', 0)
-    .attr('rx', 6).attr('ry', 6)
-    .attr('width', 0).attr('height', 0)
-    .style('opacity', d => d.depth === 2 ? 0.9 : 0.75); // species/genus get stronger pill
-
-  // text
-  nodeEnter.append('text')
-    .attr('dy', 4)
-    .attr('x', d => d.children || d._children ? -14 : 14)
-    .attr('text-anchor', d => d.children || d._children ? 'end' : 'start')
-    .text(d => {
-      // pretty label: show common name if available for species
-      if(d.depth >= 2 && d.data.common) return d.data.common;
-      // nicer names for family/subfamily/genus
-      if(d.depth === 0) return d.data.name.replace('(Family)','').trim();
-      if(d.depth === 1) return d.data.name.replace('(Subfamily)','').trim();
-      if(d.depth === 2) return d.data.name.replace('(Genus)','').trim();
-      return d.data.name;
-    })
-    .style('fill', 'var(--label)')
-    .style('font-size', d => d.depth===0 ? '14px' : d.depth===1 ? '13px' : '13px');
-
-  // MERGE + transition to new positions
+    .on("mouseout", () => tooltip.style("opacity", 0));
+  
+  nodeEnter.append("circle")
+    .attr("r", 1e-6)
+    .style("fill", d => d.data.color || "#ffb347")
+    .style("stroke", "#fff")
+    .style("stroke-width", "1.5px");
+  
+  nodeEnter.append("text")
+    .attr("dy", ".35em")
+    .attr("x", d => d.children || d._children ? -15 : 15)
+    .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+    .text(d => d.data.name)
+    .style("fill", "#fff")
+    .style("font-size", "0.85rem");
+  
   const nodeUpdate = nodeEnter.merge(node);
-
-  // compute text bbox then size rects accordingly
-  nodeUpdate.select('text').each(function(d){
-    const textEl = this;
-    const bbox = textEl.getBBox();
-    const padX = 14, padY = 6;
-    d.bbox = {w: bbox.width + padX*2, h: bbox.height + padY*2, tx: (d.children||d._children) ? -bbox.width - padX : padX};
-  });
-
-  nodeUpdate.transition().duration(duration)
-    .attr('transform', d => `translate(${d.y},${d.x})`);
-
-  nodeUpdate.select('circle').transition().duration(duration)
-    .attr('r', d => d.depth===0 ? 9 : d.depth===1 ? 8 : 7)
-    .attr('fill', d => d.data.color || (d.depth===0 ? '#fbbf24' : (d.depth===1 ? '#06b6d4' : '#94a3b8')));
-
-  nodeUpdate.select('rect.label-rect').transition().duration(duration).attr('x', d => {
-      // align rect so text appears nicely with padding
-      const x = (d.children||d._children) ? -d.bbox.w + 8 : -8;
-      return x;
-    })
-    .attr('y', d => -d.bbox.h/2 + 4)
-    .attr('width', d => d.bbox.w)
-    .attr('height', d => d.bbox.h)
-    .style('opacity', d => d.depth >= 2 ? 0.88 : 0.6);
-
-  nodeUpdate.select('text').transition().duration(duration)
-    .attr('x', d => (d.children||d._children) ? -10 : 10)
-    .style('fill-opacity', 1);
-
-  // remove exiting nodes
-  const nodeExit = node.exit().transition().duration(duration)
-    .attr('transform', d => `translate(${source.y},${source.x})`)
+  nodeUpdate.transition().duration(500)
+    .attr("transform", d => `translate(${d.y},${d.x})`);
+  nodeUpdate.select("circle").attr("r", 8);
+  
+  const nodeExit = node.exit().transition().duration(500)
+    .attr("transform", d => `translate(${source.y},${source.x})`)
     .remove();
-
-  nodeExit.select('circle').attr('r', 1e-6);
-  nodeExit.select('text').style('fill-opacity', 1e-6);
-
-  // store positions for transitions
+  nodeExit.select("circle").attr("r", 1e-6);
+  
+  const link = g.selectAll("path.link").data(links, d => d.target.id);
+  const linkEnter = link.enter().insert("path", "g")
+    .attr("class", "link")
+    .attr("d", d => {
+      const o = {x: source.x0, y: source.y0};
+      return diagonal(o, o);
+    })
+    .style("fill", "none")
+    .style("stroke", "#ccc")
+    .style("stroke-width", "1.5px");
+  
+  linkEnter.merge(link).transition().duration(500)
+    .attr("d", d => diagonal(d.source, d.target));
+  
+  link.exit().transition().duration(500)
+    .attr("d", d => {
+      const o = {x: source.x, y: source.y};
+      return diagonal(o, o);
+    }).remove();
+  
   nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
 }
 
-/* diagonal cubic curve */
-function diagonal(d){
-  const source = d.source, target = d.target;
-  const x1 = source.x, x2 = target.x;
-  const y1 = source.y, y2 = target.y;
-  const cx = (y1 + y2) / 2;
-  return `M${y1},${x1}C${cx},${x1} ${cx},${x2} ${y2},${x2}`;
+function diagonal(s, d) {
+  return `M ${s.y} ${s.x}
+          C ${(s.y + d.y) / 2} ${s.x},
+            ${(s.y + d.y) / 2} ${d.x},
+            ${d.y} ${d.x}`;
 }
 
-/* initial draw */
-update(root);
-
-/* Buttons */
-document.getElementById('expandAll').addEventListener('click', () => { expand(root); update(root); });
-document.getElementById('collapseGenera').addEventListener('click', () => { 
-  // collapse everything then open to family->subfamily->genus
-  collapse(root);
-  // we want family and subfamilies open; collapse below genus level
-  if(root.children){
-    root.children.forEach(sub => {
-      // open subfamily
-      if(sub._children) { sub.children = sub._children; sub._children = null; }
-      // ensure genus children are collapsed (species collapsed)
-      if(sub.children){
-        sub.children.forEach(gen => {
-          if(gen.children){
-            gen._children = gen.children;
-            gen.children = null;
-          }
-        });
-      }
-    });
+function collapse(d) {
+  if (d.children) {
+    d._children = d.children;
+    d._children.forEach(collapse);
+    d.children = null;
   }
-  update(root);
-});
-document.getElementById('resetView').addEventListener('click', () => {
-  d3.select(canvas).transition().duration(450).call(zoom.transform, d3.zoomIdentity.translate(120,40).scale(1));
-});
+}
 
-/* center nicely at load */
-d3.select(canvas).call(zoom.transform, d3.zoomIdentity.translate(120,40).scale(1));
+function expand(d) {
+  if (d._children) {
+    d.children = d._children;
+    d.children.forEach(expand);
+    d._children = null;
+  }
+}
 
-/* make canvas responsive */
-window.addEventListener('resize', () => {
-  const w = window.innerWidth, h = window.innerHeight - 64;
-  svg.attr('viewBox', `0 0 ${w} ${h}`);
-  treeLayout.size([h - 160, w - 340]);
-  update(root);
-});
+function getGenus(d) {
+  let node = d;
+  while (node.parent) {
+    if (node.parent.data.rank === "Genus") return node.parent.data.name;
+    node = node.parent;
+  }
+  return "";
+}
+
+let i = 0;
+
+document.getElementById("expandAll").onclick = () => { root.children.forEach(expand); update(root); };
+document.getElementById("collapseGenera").onclick = () => { root.children.forEach(collapse); update(root); };
+document.getElementById("resetView").onclick = () => {
+  svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+};
 </script>
 </body>
 </html>
